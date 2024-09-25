@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Circle of Trapezoidal Tiles with Aligned Paths</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+
+    <!-- Import OrbitControls -->
+    <script>
+
+
+        // Set up the scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+
+
+        // OrbitControls for camera
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enabled = false;
+        controls.enableDamping = true; // Smooth camera movement
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 1; // Minimum zoom distance
+        controls.maxDistance = 30; // Maximum zoom distance
+        controls.maxPolarAngle = Math.PI / 2.2; // Restrict vertical movement
+
+        // Colors array for the tiles (repeating pattern of colors)
+        const colors = [
+            '#FF6347', '#4682B4', '#32CD32', '#FFD700', // Red, Blue, Green, Yellow
+            '#DA70D6', '#40E0D0', '#FF4500', '#1E90FF', // Purple, Turquoise, Orange, Dodger Blue
+            '#ADFF2F', '#FF69B4', '#8A2BE2', '#F4A460', // Green Yellow, Pink, Blue Violet, Sandy Brown
+            '#FF6347', '#4682B4', '#32CD32', '#FFD700', // Repeated
+            '#DA70D6', '#40E0D0', '#FF4500', '#1E90FF',
+            '#ADFF2F', '#FF69B4', '#8A2BE2', '#F4A460'
+        ];
+
+        // Function to create a trapezoidal tile
+        function createTrapezoid(innerRadius, outerRadius, angleStart, angleEnd, color) {
+            const shape = new THREE.Shape();
+
+            // Calculate the positions of the four corners of the trapezoid
+            const x1 = innerRadius * Math.cos(angleStart);
+            const z1 = innerRadius * Math.sin(angleStart);
+            const x2 = outerRadius * Math.cos(angleStart);
+            const z2 = outerRadius * Math.sin(angleStart);
+            const x3 = outerRadius * Math.cos(angleEnd);
+            const z3 = outerRadius * Math.sin(angleEnd);
+            const x4 = innerRadius * Math.cos(angleEnd);
+            const z4 = innerRadius * Math.sin(angleEnd);
+
+            // Define the shape
+            shape.moveTo(x1, z1);
+            shape.lineTo(x2, z2);
+            shape.lineTo(x3, z3);
+            shape.lineTo(x4, z4);
+            shape.lineTo(x1, z1);
+
+            // Create geometry and material
+            const geometry = new THREE.ShapeGeometry(shape);
+            const material = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide });
+            const tile = new THREE.Mesh(geometry, material);
+
+            return tile;
+        }
+
+        // Calculate the side length of the hexagon to match the inner side of trapezoids
+        const outerRadius = 5; // Outer radius of the circle
+        const innerRadius = outerRadius - 0.7; // Inner radius of the tiles
+        const numTiles = 24; // Number of tiles in the circle
+        const angleStep = (2 * Math.PI) / numTiles; // Step angle for full circle
+
+        // Calculate the side length of the hexagon
+        const hexagonSideLength = innerRadius * Math.sin(Math.PI / 12); // Inner side of trapezoids should match hexagon sides
+
+        // Create a circle of trapezoidal tiles
+        const whiteTileIndices = [0, 4, 8, 12, 16, 20]; // Indices of tiles to be white (aligned with inner paths)
+
+        for (let i = 0; i < numTiles; i++) {
+            const angleStart = angleStep * i; // Starting angle of the tile
+            const angleEnd = angleStart + angleStep; // Ending angle of the tile
+
+            // Check if this tile should be white
+            const color = whiteTileIndices.includes(i) ? '#FFFFFF' : colors[i % colors.length];
+
+            // Create a trapezoidal tile for the outer circle
+            const tile = createTrapezoid(innerRadius, outerRadius, angleStart, angleEnd, color);
+
+            tile.rotation.x = -Math.PI / 2; // Rotate to lie flat on the ground
+            scene.add(tile);
+        }
+
+        // Create the central hexagon with correct side length
+        const hexagonGeometry = new THREE.CircleGeometry(hexagonSideLength / (2 * Math.sin(Math.PI / 6)), 6); // Calculate the radius from side length
+        const hexagonMaterial = new THREE.MeshBasicMaterial({ color: '#FFFFFF', side: THREE.DoubleSide });
+        const hexagon = new THREE.Mesh(hexagonGeometry, hexagonMaterial);
+        hexagon.rotation.x = -Math.PI / 2; // Rotate to lie flat
+        hexagon.rotation.z = Math.PI / 5; // Adjusted rotation to align the hexagon with inner paths
+        scene.add(hexagon);
+
+        // Create square inner path tiles to match hexagon side length
+        const pathTiles = 3; // Number of tiles in each radial path
+        const pathSideLength = hexagonSideLength; // Each path tile will be a square with side length equal to hexagon side
+        const pathStartRadius = hexagonSideLength / (2 * Math.sin(Math.PI / 6)); // Start exactly from the hexagon
+        const pathEndRadius = innerRadius + 1; // End where the outer tiles start
+        const pathAngleStep = (2 * Math.PI) / 6; // 6 paths radiating from the hexagon
+        const pathRotationOffset = -Math.PI / 24; // Rotation offset for aligning with white tiles
+
+        for (let i = 0; i < 6; i++) {
+            const pathAngleCenter = pathAngleStep * i + pathRotationOffset; // Center angle for each path with rotation offset
+
+            for (let j = 0; j < pathTiles; j++) {
+                const radius = pathStartRadius + (j + 0.35) * pathSideLength; // Center of each square tile along the path
+
+                // Calculate the positions of the square tile
+                const x = radius * Math.cos(pathAngleCenter);
+                const z = radius * Math.sin(pathAngleCenter);
+
+                // Create a square tile
+                const squareGeometry = new THREE.PlaneGeometry(pathSideLength, pathSideLength); // Create square geometry
+                const squareMaterial = new THREE.MeshBasicMaterial({ color: colors[(i + j) % colors.length], side: THREE.DoubleSide });
+                const squareTile = new THREE.Mesh(squareGeometry, squareMaterial);
+
+                squareTile.position.set(x, 0, z);
+                squareTile.rotation.x = -Math.PI / 2; // Rotate to lie flat on the ground
+                squareTile.rotation.z = -pathAngleCenter; // Align square to the path
+                scene.add(squareTile);
+            }
+        }
+
+        // Position camera above the circle
+//        camera.position.set(0, 15, 15);
+//        camera.lookAt(0, 0, 0);
+
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // Render loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // Update controls for damping effect
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Initial camera position
+        camera.position.set(0, 30, 30);
+        camera.lookAt(0, 0, 0);
+
+        // Entrance animation using GSAP
+        const targetTileIndex = 0; // Change this index to target a different white tile
+        const targetTileAngle = (2 * Math.PI / numTiles) * targetTileIndex; // Calculate angle for the target tile
+        const targetX = (outerRadius + 0.5) * Math.cos(targetTileAngle); // X position of the target tile
+        const targetZ = (outerRadius + 0.5) * Math.sin(targetTileAngle); // Z position of the target tile
+
+        // Animation Sequence
+        gsap.timeline()
+    .to(camera.position, {
+        duration: 3,
+        x: 15 * Math.cos(Math.PI), // Circle around the structure
+        z: 15 * Math.sin(Math.PI),
+        y: 5,
+        ease: "power2.out",
+        onUpdate: function() {
+            controls.update(); // Update controls during animation
+        }
+    })
+    .to(camera.position, {
+        duration: 4,
+        x: 0, // Move to the target position smoothly
+        z: 1,
+        y: 10,
+        ease: "power2.out",
+        onUpdate: function() {
+            controls.target.set(0, 0, 0); // Set target to match camera movement
+            controls.update(); // Update controls for each frame of animation
+        },
+        onComplete: function() {
+            controls.enabled = true; // Re-enable controls after animation completes
+        }
+    });
+
+//        controls.target.set(targetX, 0, targetZ);
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
